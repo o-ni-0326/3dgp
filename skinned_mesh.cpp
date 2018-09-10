@@ -6,6 +6,42 @@ using namespace fbxsdk;
 #include "misc.h"
 #include "ResourceManager.h"
 
+struct bone_influence
+{
+	int index;		//ボーン番号
+	float weight;	//ボーン影響度
+};
+typedef std::vector<bone_influence> bone_influences_per_control_point;
+
+//ボーン影響度をFBXデータから取得する
+void fetch_bone_influences(const FbxMesh *fbx_mesh, std::vector<bone_influences_per_control_point> &influences) {
+
+	const int number_of_control_points = fbx_mesh->GetControlPointsCount();
+	influences.resize(number_of_control_points);
+
+	const int number_of_deformers = fbx_mesh->GetDeformerCount(FbxDeformer::eSkin);
+	for (int index_of_deformer = 0; index_of_deformer < number_of_deformers; ++index_of_deformer) {
+		FbxSkin *skin = static_cast<FbxSkin *>(fbx_mesh->GetDeformer(index_of_deformer, FbxDeformer::eSkin));
+
+		const int number_of_clusters = skin->GetClusterCount();
+		for (int index_of_cluster = 0; index_of_cluster < number_of_clusters; ++index_of_cluster) {
+			FbxCluster* cluster = skin->GetCluster(index_of_cluster);
+
+			const int number_of_control_point_indices = cluster->GetControlPointIndicesCount();
+			const int *array_of_control_point_indices = cluster->GetControlPointIndices();
+			const double *array_of_control_point_weights = cluster->GetControlPointWeights();
+
+			for (int i = 0; i < number_of_control_point_indices; ++i) {
+				bone_influences_per_control_point &influences_per_control_point = influences.at(array_of_control_point_indices[i]);
+				bone_influence influence;
+				influence.index = index_of_cluster;
+				influence.weight = static_cast<float>(array_of_control_point_weights[i]);
+				influences_per_control_point.push_back(influence);
+			}
+		}
+	}
+}
+
 HRESULT	MakeDummyShaderResourceView(ID3D11Device *Device, ID3D11ShaderResourceView** shaderResourceView)
 {
 	HRESULT hr = S_OK;
@@ -260,6 +296,8 @@ skinned_mesh::skinned_mesh(ID3D11Device *Device, const char *fbx_filename)
 				mesh.global_transform(row, column) = static_cast<float>(global_transform[row][column]);
 			}
 		}
+		std::vector<bone_influences_per_control_point> bone_influences;
+		fetch_bone_influences(fbx_mesh, bone_influences);
 
 	}
 
