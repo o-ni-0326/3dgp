@@ -157,13 +157,11 @@ bool framework::initialize(HWND hwnd)
 		"002_cube.fbx",				//UV
 		"003_cube.fbx",				//3êF
 		"004_cube.fbx",				//3Ç¬
+		"005_cube.fbx",				//âeãøìx
 	};
 
-	//sdk = new skinned_mesh(Device,"000_cube.fbx");   //cube
-	//sdk = new skinned_mesh(Device, "001_cube.fbx");  //ê‘
-	//sdk = new skinned_mesh(Device, "002_cube.fbx");  //uv
-	//sdk = new skinned_mesh(Device, "003_cube.fbx");  //3êF
-	sdk = new skinned_mesh(Device, sdk_meshData[4]);
+
+	sdk = new skinned_mesh(Device, sdk_meshData[5]);
 	
 	return true;
 }
@@ -250,7 +248,7 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	//angle * 4, 0.2f, 0.05f*timer, 0.01f*timer, fabsf(sinf(3.141592f*timer*0.5f*0.5f)));
 	//}
 	
-	const DirectX::XMFLOAT4 cpos(0, 0, -10, 1);
+	const DirectX::XMFLOAT4 cpos(10, 5, -25, 1);
 	const DirectX::XMFLOAT4 ctarget(0, 0, 0, 1);
 
 	static DirectX::XMFLOAT3 pos(0, 0, 0);

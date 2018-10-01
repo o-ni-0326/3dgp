@@ -25,11 +25,21 @@ public:
 	skinned_mesh(ID3D11Device *Device, const char *fbx_filename);
 	~skinned_mesh();
 
+	struct bone_influence
+	{
+		int index;		//ボーン番号
+		float weight;	//ボーンの重み
+	};
+	typedef std::vector<bone_influence> bone_influences_per_control_point;
+
 	struct vertex
 	{
 		DirectX::XMFLOAT3 position;		//位置
 		DirectX::XMFLOAT3 normal;		//法線
 		DirectX::XMFLOAT2 texcoord;
+#define MAX_BONE_INFLUENCES 4
+		FLOAT bone_weights[MAX_BONE_INFLUENCES] = { 1,0,0,0 };
+		INT bone_indices[MAX_BONE_INFLUENCES] = {};
 	};
 
 	struct cbuffer

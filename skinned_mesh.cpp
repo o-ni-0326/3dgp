@@ -6,15 +6,16 @@ using namespace fbxsdk;
 #include "misc.h"
 #include "ResourceManager.h"
 
-struct bone_influence
-{
-	int index;		//ボーン番号
-	float weight;	//ボーン影響度
-};
-typedef std::vector<bone_influence> bone_influences_per_control_point;
+
+//struct bone_influence
+//{
+//	int index;		//ボーン番号
+//	float weight;	//ボーンの重み
+//};
+//typedef std::vector<bone_influence> bone_influences_per_control_point;
 
 //ボーン影響度をFBXデータから取得する
-void fetch_bone_influences(const FbxMesh *fbx_mesh, std::vector<bone_influences_per_control_point> &influences) {
+void fetch_bone_influences(const FbxMesh *fbx_mesh, std::vector<skinned_mesh::bone_influences_per_control_point> &influences) {
 
 	const int number_of_control_points = fbx_mesh->GetControlPointsCount();
 	influences.resize(number_of_control_points);
@@ -32,8 +33,8 @@ void fetch_bone_influences(const FbxMesh *fbx_mesh, std::vector<bone_influences_
 			const double *array_of_control_point_weights = cluster->GetControlPointWeights();
 
 			for (int i = 0; i < number_of_control_point_indices; ++i) {
-				bone_influences_per_control_point &influences_per_control_point = influences.at(array_of_control_point_indices[i]);
-				bone_influence influence;
+				skinned_mesh::bone_influences_per_control_point &influences_per_control_point = influences.at(array_of_control_point_indices[i]);
+				skinned_mesh::bone_influence influence;
 				influence.index = index_of_cluster;
 				influence.weight = static_cast<float>(array_of_control_point_weights[i]);
 				influences_per_control_point.push_back(influence);
@@ -142,6 +143,8 @@ skinned_mesh::skinned_mesh(ID3D11Device *Device, const char *fbx_filename)
 	};
 	traverse(scene->GetRootNode());
 
+
+
 	//Fetch mesh data
 	std::vector<vertex> vertices;	//Vertex buffer
 	std::vector<u_int> indices;		//Index buffer
@@ -153,6 +156,10 @@ skinned_mesh::skinned_mesh(ID3D11Device *Device, const char *fbx_filename)
 	{
 		FbxMesh *fbx_mesh = fetched_meshes.at(i)->GetMesh();
 		mesh &mesh = meshes.at(i);
+
+		//Fetch bone influences
+		std::vector<bone_influences_per_control_point> bone_influences;
+		fetch_bone_influences(fbx_mesh, bone_influences);
 
 		//Fetch material properties
 		const int number_of_materials = fbx_mesh->GetNode()->GetMaterialCount();
@@ -279,6 +286,12 @@ skinned_mesh::skinned_mesh(ID3D11Device *Device, const char *fbx_filename)
 					vertex.texcoord.y = 1.0f - static_cast<float>(uv[1]);
 					//MakeDummyShaderResourceView(Device, &subset.diffuse.shader_resource_view);
 				}
+				
+				for (int i = 0,max = bone_influences[index_of_control_point].size(); i < max; ++i) {
+					vertex.bone_weights[i] = bone_influences[index_of_control_point][i].weight;
+					vertex.bone_indices[i] = bone_influences[index_of_control_point][i].index;
+				}
+
 				vertices.push_back(vertex);
 
 				//UNIT.18
@@ -288,6 +301,7 @@ skinned_mesh::skinned_mesh(ID3D11Device *Device, const char *fbx_filename)
 			}
 			subset.index_count += 3;	//UNIT.18
 		}
+
 		FbxAMatrix global_transform = fbx_mesh->GetNode()->EvaluateGlobalTransform(0);
 		for (int row = 0; row < 4; row++)
 		{
@@ -296,8 +310,6 @@ skinned_mesh::skinned_mesh(ID3D11Device *Device, const char *fbx_filename)
 				mesh.global_transform(row, column) = static_cast<float>(global_transform[row][column]);
 			}
 		}
-		std::vector<bone_influences_per_control_point> bone_influences;
-		fetch_bone_influences(fbx_mesh, bone_influences);
 
 	}
 
@@ -309,9 +321,11 @@ skinned_mesh::skinned_mesh(ID3D11Device *Device, const char *fbx_filename)
 
 	D3D11_INPUT_ELEMENT_DESC layout[] =
 	{
-		{ "POSITION",0,DXGI_FORMAT_R32G32B32_FLOAT,0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0 },
-		{ "NORMAL",0,DXGI_FORMAT_R32G32B32_FLOAT,0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0 },
-		{ "TEXCOORD",0,DXGI_FORMAT_R32G32_FLOAT,0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0 }
+		{ "POSITION",0,DXGI_FORMAT_R32G32B32_FLOAT,		0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0 },
+		{ "NORMAL",	 0,DXGI_FORMAT_R32G32B32_FLOAT,		0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0 },
+		{ "TEXCOORD",0,DXGI_FORMAT_R32G32_FLOAT,		0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0 },
+		{ "WEIGHTS", 0,DXGI_FORMAT_R32G32B32A32_FLOAT,	0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0 },
+		{ "BONES",	 0,DXGI_FORMAT_R32G32B32A32_SINT,	0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0 },
 	};
 	UINT numElements = ARRAYSIZE(layout);
 
@@ -479,10 +493,10 @@ void skinned_mesh::render(ID3D11DeviceContext * Context,
 			UINT offset = 0;
 
 			// Set vertex buffer
-			Context->IASetVertexBuffers(0, 1, &meshes.at(0).vertex_buffer, &stride, &offset);
+			Context->IASetVertexBuffers(0, 1, &meshes.at(i).vertex_buffer, &stride, &offset);
 
 			// Set index buffer
-			Context->IASetIndexBuffer(meshes.at(0).index_buffer, DXGI_FORMAT_R32_UINT, 0);
+			Context->IASetIndexBuffer(meshes.at(i).index_buffer, DXGI_FORMAT_R32_UINT, 0);
 
 			// Set primitive topology
 			Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -509,7 +523,7 @@ void skinned_mesh::render(ID3D11DeviceContext * Context,
 
 			//index付き描画
 			D3D11_BUFFER_DESC buffer_desc;
-			meshes.at(0).index_buffer->GetDesc(&buffer_desc);
+			meshes.at(i).index_buffer->GetDesc(&buffer_desc);
 
 			Context->DrawIndexed(mesh.subsets.at(i).index_count, mesh.subsets.at(i).index_start, 0);
 		}

@@ -12,7 +12,8 @@ struct BLEND_DATA
 	D3D11_BLEND DestBlendAlpha;
 	D3D11_BLEND_OP BlendOpAlpha;
 }
-BlenData[Blend::MODE_MAX] = 
+
+BlendData[Blend::MODE_MAX] = 
 {
 
 	{//NONE
@@ -103,12 +104,12 @@ bool Blend::Initialize(ID3D11Device * Device)
 		BlendDesc.AlphaToCoverageEnable = FALSE;
 		BlendDesc.IndependentBlendEnable = FALSE;
 		BlendDesc.RenderTarget[0].BlendEnable = TRUE;
-		BlendDesc.RenderTarget[0].SrcBlend = BlenData[mode].SrcBlend;
-		BlendDesc.RenderTarget[0].DestBlend = BlenData[mode].DestBlend;
-		BlendDesc.RenderTarget[0].BlendOp = BlenData[mode].BlendOp;
-		BlendDesc.RenderTarget[0].SrcBlendAlpha = BlenData[mode].SrcBlendAlpha;
-		BlendDesc.RenderTarget[0].DestBlendAlpha = BlenData[mode].DestBlendAlpha;
-		BlendDesc.RenderTarget[0].BlendOpAlpha = BlenData[mode].BlendOpAlpha;
+		BlendDesc.RenderTarget[0].SrcBlend = BlendData[mode].SrcBlend;
+		BlendDesc.RenderTarget[0].DestBlend = BlendData[mode].DestBlend;
+		BlendDesc.RenderTarget[0].BlendOp = BlendData[mode].BlendOp;
+		BlendDesc.RenderTarget[0].SrcBlendAlpha = BlendData[mode].SrcBlendAlpha;
+		BlendDesc.RenderTarget[0].DestBlendAlpha = BlendData[mode].DestBlendAlpha;
+		BlendDesc.RenderTarget[0].BlendOpAlpha = BlendData[mode].BlendOpAlpha;
 		BlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 		hr = Device->CreateBlendState(&BlendDesc, &BlendState[mode]);
 		if (FAILED(hr))return false;
