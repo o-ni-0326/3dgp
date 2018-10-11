@@ -161,7 +161,7 @@ bool framework::initialize(HWND hwnd)
 	};
 
 
-	sdk = new skinned_mesh(Device, sdk_meshData[5]);
+	sdk = new skinned_mesh(Device, sdk_meshData[4]);
 	
 	return true;
 }
@@ -185,7 +185,7 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 
 
 	// Just clear the backbuffer
-	float ClearColor[4] = { 0.0f, 0.7f, 0.7f, 1.0f }; //red,green,blue,alpha
+	float ClearColor[4] = { 0.1f, 0.8f, 0.8f, 1.0f }; //red,green,blue,alpha
 	Context->ClearRenderTargetView(RenderTargetView, ClearColor);
 
 

@@ -21,9 +21,9 @@ VS_OUT main(float4 position : POSITION, float4 normal : NORMAL, float2 texcoord 
 			}
 		}
 	}
-	vout.color = influence;
+	//vout.color = influence;
 
-	//vout.color = material_color * max(0, dot(L, N));
+	vout.color = material_color * max(0, dot(L, N));
 	vout.color.a = material_color.a;
 
 	vout.texcoord = texcoord;
