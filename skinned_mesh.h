@@ -35,6 +35,7 @@ public:
 	struct vertex
 	{
 		DirectX::XMFLOAT3 position;		//à íu
+		DirectX::XMFLOAT4 color;
 		DirectX::XMFLOAT3 normal;		//ñ@ê¸
 		DirectX::XMFLOAT2 texcoord;
 #define MAX_BONE_INFLUENCES 4

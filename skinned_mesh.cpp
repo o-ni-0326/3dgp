@@ -316,6 +316,7 @@ skinned_mesh::skinned_mesh(ID3D11Device *Device, const char *fbx_filename)
 	D3D11_INPUT_ELEMENT_DESC layout[] =
 	{
 		{ "POSITION",0,DXGI_FORMAT_R32G32B32_FLOAT,		0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0 },
+		{ "COLOR",	 0,DXGI_FORMAT_R32G32B32A32_FLOAT,	0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0 },
 		{ "NORMAL",	 0,DXGI_FORMAT_R32G32B32_FLOAT,		0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0 },
 		{ "TEXCOORD",0,DXGI_FORMAT_R32G32_FLOAT,		0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0 },
 		{ "WEIGHTS", 0,DXGI_FORMAT_R32G32B32A32_FLOAT,	0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0 },
@@ -482,48 +483,48 @@ void skinned_mesh::render(ID3D11DeviceContext * Context,
 			cb.material_color.y = mesh.subsets.at(i).diffuse.color.y * Material_color.y;
 			cb.material_color.z = mesh.subsets.at(i).diffuse.color.z * Material_color.z;
 			cb.material_color.w = Material_color.w;
-		}
 
 
-		// Set vertex buffer
-		UINT stride = sizeof(vertex);
-		UINT offset = 0;
+			// Set vertex buffer
+			UINT stride = sizeof(vertex);
+			UINT offset = 0;
 
-		// Set vertex buffer
-		Context->IASetVertexBuffers(0, 1, &meshes.at(0).vertex_buffer, &stride, &offset);
+			// Set vertex buffer
+			Context->IASetVertexBuffers(0, 1, &meshes.at(0).vertex_buffer, &stride, &offset);
 
-		// Set index buffer
-		Context->IASetIndexBuffer(meshes.at(0).index_buffer, DXGI_FORMAT_R32_UINT, 0);
+			// Set index buffer
+			Context->IASetIndexBuffer(meshes.at(0).index_buffer, DXGI_FORMAT_R32_UINT, 0);
 
-		// Set primitive topology
-		Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			// Set primitive topology
+			Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-		// Set the input layout
-		Context->IASetInputLayout(Layout);
+			// Set the input layout
+			Context->IASetInputLayout(Layout);
 
-		//state
-		if (bWireframe) Context->RSSetState(WRasState);
-		else Context->RSSetState(FRasState);
+			//state
+			if (bWireframe) Context->RSSetState(WRasState);
+			else Context->RSSetState(FRasState);
 
-		// Set Shaders
-		Context->VSSetShader(Vertex, NULL, 0);
-		Context->PSSetShader(PixelShader, NULL, 0);
+			// Set Shaders
+			Context->VSSetShader(Vertex, NULL, 0);
+			Context->PSSetShader(PixelShader, NULL, 0);
 
-		Context->UpdateSubresource(CBuffer, 0, NULL, &cb, 0, 0);
-		Context->VSSetConstantBuffers(0, 1, &CBuffer);
+			Context->UpdateSubresource(CBuffer, 0, NULL, &cb, 0, 0);
+			Context->VSSetConstantBuffers(0, 1, &CBuffer);
 
-		Context->PSSetShaderResources(0, 1, &mesh.subsets.at(0).diffuse.shader_resource_view);
-		Context->PSSetSamplers(0, 1, &SamplerDesc);
+			Context->PSSetSamplers(0, 1, &SamplerDesc);
 
-		//depth
-		Context->OMSetDepthStencilState(DepthState, 0);
+			//depth
+			Context->OMSetDepthStencilState(DepthState, 0);
 
-		//index•t‚«•`‰æ
-		D3D11_BUFFER_DESC buffer_desc;
-		meshes.at(0).index_buffer->GetDesc(&buffer_desc);
+			//index•t‚«•`‰æ
+			D3D11_BUFFER_DESC buffer_desc;
+			meshes.at(0).index_buffer->GetDesc(&buffer_desc);
 
-		for (size_t i = 0; i < mesh.subsets.size(); i++) {
-			Context->DrawIndexed(mesh.subsets.at(i).index_count, mesh.subsets.at(0).index_start, 0);
+			//for (subset subset : mesh.subsets) {
+				Context->PSSetShaderResources(0, 1, &mesh.subsets.at(i).diffuse.shader_resource_view);
+				Context->DrawIndexed(mesh.subsets.at(i).index_start + mesh.subsets.at(i).index_count, 0, 0);
+			//}
 		}
 	}
 }
