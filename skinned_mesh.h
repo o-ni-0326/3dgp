@@ -37,6 +37,12 @@ public:
 		int index;		//ボーン番号
 		float weight;	//ボーンの重み
 	};
+
+	struct bone
+	{
+		DirectX::XMFLOAT4X4 transform;
+	};
+
 	typedef std::vector<bone_influence> bone_influences_per_control_point;
 
 #define MAX_BONE_INFLUENCES 4
@@ -80,7 +86,9 @@ public:
 		ID3D11Buffer* index_buffer;
 		std::vector<subset> subsets;
 		DirectX::XMFLOAT4X4 global_transform = { 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1 };
+		std::vector<skinned_mesh::bone> skeletal;
 	};
+
 	std::vector<mesh> meshes;
 
 	void CreateBuffer(ID3D11Device* Device, vertex* vertices, u_int* indices, int numIndex, int numVertex);

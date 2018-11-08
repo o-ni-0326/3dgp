@@ -6,7 +6,53 @@ using namespace fbxsdk;
 #include "misc.h"
 #include "ResourceManager.h"
 
+//ボーン行列をFBXデータから取得する
+void fetch_bone_matrices(FbxMesh *fbx_mesh, std::vector<skinned_mesh::bone> &skeletal, FbxTime time)
+{
+	const int number_of_deformers = fbx_mesh->GetDeformerCount(FbxDeformer::eSkin);
 
+	for (int index_of_deformer = 0; index_of_deformer < number_of_deformers; ++index_of_deformer)
+	{
+		FbxSkin *skin = static_cast<FbxSkin *>(fbx_mesh->GetDeformer(index_of_deformer, FbxDeformer::eSkin));
+		const int number_of_clusters = skin->GetClusterCount();
+		skeletal.resize(number_of_clusters);
+
+		for (int index_of_cluster = 0; index_of_cluster < number_of_clusters; ++index_of_cluster)
+		{
+			skinned_mesh::bone &bone = skeletal.at(index_of_cluster);
+			FbxCluster *cluster = skin->GetCluster(index_of_cluster);
+
+			// this matrix trnasforms coordinates of the initial pose from mesh space to global space
+			FbxAMatrix reference_global_init_position;
+			cluster->GetTransformMatrix(reference_global_init_position);
+
+			// this matrix trnasforms coordinates of the initial pose from bone space to global space
+			FbxAMatrix cluster_global_init_position;
+			cluster->GetTransformLinkMatrix(cluster_global_init_position);
+
+			// this matrix trnasforms coordinates of the current pose from bone space to global space
+			FbxAMatrix cluster_global_current_position;
+			cluster_global_current_position = cluster->GetLink()->EvaluateGlobalTransform(time);
+
+			// this matrix trnasforms coordinates of the current pose from mesh space to global space
+			FbxAMatrix reference_global_current_position;
+			reference_global_current_position = fbx_mesh->GetNode()->EvaluateGlobalTransform(time);
+
+			// Matrices are defined using the Column Major scheme. When a FbxAMatrix represents a transformation
+			// (translation, rotation and scale), the last row of the matrix represents the translation part of the
+			// transformation.
+			FbxAMatrix transform = reference_global_current_position.Inverse() * cluster_global_current_position
+				* cluster_global_init_position.Inverse() * reference_global_init_position;
+
+			// convert FbxAMatrix(transform) to XMDLOAT4X4(bone.transform)
+			for (int row = 0, column = 0; row < 4; ++row) {
+				for (column = 0; column < 4; ++column) {
+					bone.transform(row, column) = static_cast<float>(transform[row][column]);
+				}
+			}
+		}
+	}
+}
 
 //ボーン影響度をFBXデータから取得する
 void fetch_bone_influences(const FbxMesh *fbx_mesh, std::vector<skinned_mesh::bone_influences_per_control_point> &influences) {
@@ -154,6 +200,12 @@ skinned_mesh::skinned_mesh(ID3D11Device *Device, const char *fbx_filename)
 		//Fetch bone influences
 		std::vector<bone_influences_per_control_point> bone_influences;
 		fetch_bone_influences(fbx_mesh, bone_influences);
+
+		//Fetch Bone transform
+		FbxTime::EMode time_mode = fbx_mesh->GetScene()->GetGlobalSettings().GetTimeMode();
+		FbxTime frame_time;
+		frame_time.SetTime(0, 0, 0, 1, 0, time_mode);
+		fetch_bone_matrices(fbx_mesh, mesh.skeletal, frame_time * 20); // pose at frame 20
 
 		//Fetch material properties
 		const int number_of_materials = fbx_mesh->GetNode()->GetMaterialCount();
@@ -461,15 +513,30 @@ void skinned_mesh::render(ID3D11DeviceContext * Context,
 	cb.light_direction = light;
 	//Context->UpdateSubresource(CBuffer, 0, NULL, &cb, 0, 0);
 	//Context->VSSetConstantBuffers(0, 1, &CBuffer);
-	static float angle = 0;
-	DirectX::XMStoreFloat4x4(&cb.bone_transforms[0], DirectX::XMMatrixIdentity());
-	DirectX::XMStoreFloat4x4(&cb.bone_transforms[1], DirectX::XMMatrixRotationRollPitchYaw(0,0,angle * 0.01745f));
-	DirectX::XMStoreFloat4x4(&cb.bone_transforms[2], DirectX::XMMatrixIdentity());
-	angle += 0.1f;
+
+	//static float angle = 0;
+	//DirectX::XMStoreFloat4x4(&cb.bone_transforms[0], DirectX::XMMatrixIdentity());
+	//DirectX::XMStoreFloat4x4(&cb.bone_transforms[1], DirectX::XMMatrixRotationRollPitchYaw(0,0,angle * 0.01745f));
+	//DirectX::XMStoreFloat4x4(&cb.bone_transforms[2], DirectX::XMMatrixIdentity());
+	//angle += 0.1f;
+
 
 
 	for (mesh &mesh : meshes)
 	{
+		std::vector<bone> &skeletal = mesh.skeletal;
+		if (skeletal.size() > 0) {
+			for (size_t i = 0; i < skeletal.size(); i++)
+			{
+				DirectX::XMStoreFloat4x4(&cb.bone_transforms[i], DirectX::XMLoadFloat4x4(&skeletal.at(i).transform));
+			}
+			
+		}
+		else {
+			DirectX::XMStoreFloat4x4(&cb.bone_transforms[0], DirectX::XMMatrixIdentity());
+			DirectX::XMStoreFloat4x4(&cb.bone_transforms[1], DirectX::XMMatrixIdentity());
+			DirectX::XMStoreFloat4x4(&cb.bone_transforms[2], DirectX::XMMatrixIdentity());
+		}
 
 		for (size_t i = 0; i < mesh.subsets.size(); i++) {
 			DirectX::XMStoreFloat4x4(&cb.world_view_projection,
@@ -486,6 +553,8 @@ void skinned_mesh::render(ID3D11DeviceContext * Context,
 			cb.material_color.z = mesh.subsets.at(i).diffuse.color.z * Material_color.z;
 			cb.material_color.w = Material_color.w;
 
+
+			
 
 			// Set vertex buffer
 			UINT stride = sizeof(vertex);
