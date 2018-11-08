@@ -19,6 +19,13 @@ protected:
 	ID3D11SamplerState* SamplerDesc;
 	D3D11_TEXTURE2D_DESC     Tex2d_desc;
 
+	//Y軸とZ軸を入れ替えて座標軸変換
+	DirectX::XMFLOAT4X4 coordinate_conversion = {
+		1,0,0,0,
+		0,0,1,0,
+		0,1,0,0,
+		0,0,0,1
+	};
 
 public:
 
@@ -32,23 +39,25 @@ public:
 	};
 	typedef std::vector<bone_influence> bone_influences_per_control_point;
 
+#define MAX_BONE_INFLUENCES 4
 	struct vertex
 	{
 		DirectX::XMFLOAT3 position;		//位置
 		DirectX::XMFLOAT4 color;
 		DirectX::XMFLOAT3 normal;		//法線
 		DirectX::XMFLOAT2 texcoord;
-#define MAX_BONE_INFLUENCES 4
 		FLOAT bone_weights[MAX_BONE_INFLUENCES] = { 1,0,0,0 };
 		INT bone_indices[MAX_BONE_INFLUENCES] = {};
 	};
 
+#define MAX_BONES 32
 	struct cbuffer
 	{
 		DirectX::XMFLOAT4X4 world_view_projection;		//ワールド・ビュー・プロジェクション合成行列
 		DirectX::XMFLOAT4X4 world;						//ワールド変換行列
 		DirectX::XMFLOAT4 material_color;				//材質色
 		DirectX::XMFLOAT4 light_direction;				//ライト進行方向
+		DirectX::XMFLOAT4X4 bone_transforms[MAX_BONES];
 	};
 
 	struct material

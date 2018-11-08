@@ -335,7 +335,7 @@ skinned_mesh::skinned_mesh(ID3D11Device *Device, const char *fbx_filename)
 	//wire
 	ZeroMemory(&rsDesc, sizeof(D3D11_RASTERIZER_DESC));
 	rsDesc.FillMode = D3D11_FILL_WIREFRAME;
-	rsDesc.CullMode = D3D11_CULL_BACK;
+	rsDesc.CullMode = D3D11_CULL_FRONT;
 	rsDesc.FrontCounterClockwise = FALSE;
 	rsDesc.DepthClipEnable = TRUE;
 	hr = Device->CreateRasterizerState(&rsDesc, &WRasState);
@@ -345,7 +345,7 @@ skinned_mesh::skinned_mesh(ID3D11Device *Device, const char *fbx_filename)
 	//fill
 	ZeroMemory(&rsDesc, sizeof(D3D11_RASTERIZER_DESC));
 	rsDesc.FillMode = D3D11_FILL_SOLID;
-	rsDesc.CullMode = D3D11_CULL_BACK;
+	rsDesc.CullMode = D3D11_CULL_FRONT;
 	rsDesc.FrontCounterClockwise = FALSE;
 	rsDesc.DepthClipEnable = TRUE;
 	hr = Device->CreateRasterizerState(&rsDesc, &FRasState);
@@ -458,15 +458,15 @@ void skinned_mesh::render(ID3D11DeviceContext * Context,
 	//cb.world_view_projection = world_view;
 	//cb.world = worldM;
 
-
-	//cb.material_color.x = Material_color.x * diffuse.color.x;
-	//cb.material_color.y = Material_color.x * diffuse.color.y;
-	//cb.material_color.z = Material_color.x * diffuse.color.z;
-	//cb.material_color.w = Material_color.x * diffuse.color.w;
-
 	cb.light_direction = light;
 	//Context->UpdateSubresource(CBuffer, 0, NULL, &cb, 0, 0);
 	//Context->VSSetConstantBuffers(0, 1, &CBuffer);
+	static float angle = 0;
+	DirectX::XMStoreFloat4x4(&cb.bone_transforms[0], DirectX::XMMatrixIdentity());
+	DirectX::XMStoreFloat4x4(&cb.bone_transforms[1], DirectX::XMMatrixRotationRollPitchYaw(0,0,angle * 0.01745f));
+	DirectX::XMStoreFloat4x4(&cb.bone_transforms[2], DirectX::XMMatrixIdentity());
+	angle += 0.1f;
+
 
 	for (mesh &mesh : meshes)
 	{
@@ -474,9 +474,11 @@ void skinned_mesh::render(ID3D11DeviceContext * Context,
 		for (size_t i = 0; i < mesh.subsets.size(); i++) {
 			DirectX::XMStoreFloat4x4(&cb.world_view_projection,
 				DirectX::XMLoadFloat4x4(&mesh.global_transform) *
+				DirectX::XMLoadFloat4x4(&coordinate_conversion) *
 				DirectX::XMLoadFloat4x4(&world_view));
 			DirectX::XMStoreFloat4x4(&cb.world,
 				DirectX::XMLoadFloat4x4(&mesh.global_transform) *
+				DirectX::XMLoadFloat4x4(&coordinate_conversion) *
 				DirectX::XMLoadFloat4x4(&worldM));
 
 			cb.material_color.x = mesh.subsets.at(i).diffuse.color.x * Material_color.x;
@@ -521,10 +523,9 @@ void skinned_mesh::render(ID3D11DeviceContext * Context,
 			D3D11_BUFFER_DESC buffer_desc;
 			meshes.at(0).index_buffer->GetDesc(&buffer_desc);
 
-			//for (subset subset : mesh.subsets) {
-				Context->PSSetShaderResources(0, 1, &mesh.subsets.at(i).diffuse.shader_resource_view);
-				Context->DrawIndexed(mesh.subsets.at(i).index_start + mesh.subsets.at(i).index_count, 0, 0);
-			//}
+			Context->PSSetShaderResources(0, 1, &mesh.subsets.at(i).diffuse.shader_resource_view);
+			Context->DrawIndexed(mesh.subsets.at(i).index_start + mesh.subsets.at(i).index_count, 0, 0);
+
 		}
 	}
 }
