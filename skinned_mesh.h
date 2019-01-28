@@ -10,8 +10,6 @@ protected:
 	ID3D11VertexShader*     Vertex;
 	ID3D11PixelShader*      PixelShader;
 	ID3D11InputLayout*      Layout;
-	//ID3D11Buffer*         VBuffer;
-	//ID3D11Buffer*			IBuffer;
 	ID3D11Buffer*			CBuffer;
 	ID3D11RasterizerState*  WRasState;
 	ID3D11RasterizerState*  FRasState;
@@ -30,7 +28,7 @@ protected:
 public:
 
 	skinned_mesh(ID3D11Device *Device, const char *fbx_filename);
-	~skinned_mesh();
+	virtual ~skinned_mesh();
 
 	struct bone_influence
 	{
@@ -44,6 +42,13 @@ public:
 	};
 
 	typedef std::vector<bone_influence> bone_influences_per_control_point;
+	typedef std::vector<bone> skeletal;
+
+	struct skeletal_animation :public std::vector<skeletal>
+	{
+		float sampling_time = 1 / 24.0f;
+		float animation_tick = 0.0f;
+	};
 
 #define MAX_BONE_INFLUENCES 4
 	struct vertex
@@ -52,11 +57,11 @@ public:
 		DirectX::XMFLOAT4 color;
 		DirectX::XMFLOAT3 normal;		//法線
 		DirectX::XMFLOAT2 texcoord;
-		FLOAT bone_weights[MAX_BONE_INFLUENCES] = { 1,0,0,0 };
+		FLOAT bone_weights[MAX_BONE_INFLUENCES] = { 1,0,0,0};
 		INT bone_indices[MAX_BONE_INFLUENCES] = {};
 	};
 
-#define MAX_BONES 32
+#define MAX_BONES 256
 	struct cbuffer
 	{
 		DirectX::XMFLOAT4X4 world_view_projection;		//ワールド・ビュー・プロジェクション合成行列
@@ -86,18 +91,21 @@ public:
 		ID3D11Buffer* index_buffer;
 		std::vector<subset> subsets;
 		DirectX::XMFLOAT4X4 global_transform = { 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1 };
-		std::vector<skinned_mesh::bone> skeletal;
+		//std::vector<skinned_mesh::bone> skeletal;
+		skeletal_animation skeletal_animation;
+		void CreateBuffer(ID3D11Device* Device, vertex* vertices, u_int* indices, int numIndex, int numVertex);
+
 	};
 
 	std::vector<mesh> meshes;
 
-	void CreateBuffer(ID3D11Device* Device, vertex* vertices, u_int* indices, int numIndex, int numVertex);
 
 	void render(ID3D11DeviceContext* Context,
 		const DirectX::XMFLOAT4X4& word_view,
 		const DirectX::XMFLOAT4X4& wordM,
 		const DirectX::XMFLOAT4& light,
 		const DirectX::XMFLOAT4& Material_color,
-		bool bWireframe);
+		bool bWireframe,
+		float elapsed_time);
 
 };

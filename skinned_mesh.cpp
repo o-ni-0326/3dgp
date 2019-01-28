@@ -1,4 +1,4 @@
-#include "skinned_mesh.h"
+ï»¿#include "skinned_mesh.h"
 #include <fbxsdk.h>
 using namespace fbxsdk;
 #include <vector>
@@ -6,7 +6,8 @@ using namespace fbxsdk;
 #include "misc.h"
 #include "ResourceManager.h"
 
-//ƒ{[ƒ“s—ñ‚ğFBXƒf[ƒ^‚©‚çæ“¾‚·‚é
+
+//ãƒœãƒ¼ãƒ³è¡Œåˆ—ã‚’FBXãƒ‡ãƒ¼ã‚¿ã‹ã‚‰å–å¾—ã™ã‚‹
 void fetch_bone_matrices(FbxMesh *fbx_mesh, std::vector<skinned_mesh::bone> &skeletal, FbxTime time)
 {
 	const int number_of_deformers = fbx_mesh->GetDeformerCount(FbxDeformer::eSkin);
@@ -54,7 +55,7 @@ void fetch_bone_matrices(FbxMesh *fbx_mesh, std::vector<skinned_mesh::bone> &ske
 	}
 }
 
-//ƒ{[ƒ“‰e‹¿“x‚ğFBXƒf[ƒ^‚©‚çæ“¾‚·‚é
+//ãƒœãƒ¼ãƒ³å½±éŸ¿åº¦ã‚’FBXãƒ‡ãƒ¼ã‚¿ã‹ã‚‰å–å¾—ã™ã‚‹
 void fetch_bone_influences(const FbxMesh *fbx_mesh, std::vector<skinned_mesh::bone_influences_per_control_point> &influences) {
 
 	const int number_of_control_points = fbx_mesh->GetControlPointsCount();
@@ -80,6 +81,46 @@ void fetch_bone_influences(const FbxMesh *fbx_mesh, std::vector<skinned_mesh::bo
 				influences_per_control_point.push_back(influence);
 			}
 		}
+	}
+}
+void fetch_animations(FbxMesh *fbx_mesh, skinned_mesh::skeletal_animation &skeletal_animation,
+	u_int sampling_rate = 0)
+{
+	// Get the list of all the animation stack.
+	FbxArray<FbxString *> array_of_animation_stack_names;
+	fbx_mesh->GetScene()->FillAnimStackNameArray(array_of_animation_stack_names);
+	// Get the number of animations.
+	int number_of_animations = array_of_animation_stack_names.Size();
+	if (number_of_animations > 0)
+	{
+		// Get the FbxTime per animation's frame.
+		FbxTime::EMode time_mode = fbx_mesh->GetScene()->GetGlobalSettings().GetTimeMode();
+		FbxTime frame_time;
+		frame_time.SetTime(0, 0, 0, 1, 0, time_mode);
+		sampling_rate = sampling_rate > 0 ? sampling_rate : frame_time.GetFrameRate(time_mode);
+		float sampling_time = 1.0f / sampling_rate;
+		skeletal_animation.sampling_time = sampling_time;
+		skeletal_animation.animation_tick = 0.0f;
+		FbxString *animation_stack_name = array_of_animation_stack_names.GetAt(0);
+		FbxAnimStack * current_animation_stack
+			= fbx_mesh->GetScene()->FindMember<FbxAnimStack>(animation_stack_name->Buffer());
+		fbx_mesh->GetScene()->SetCurrentAnimationStack(current_animation_stack);
+		FbxTakeInfo *take_info = fbx_mesh->GetScene()->GetTakeInfo(animation_stack_name->Buffer());
+		FbxTime start_time = take_info->mLocalTimeSpan.GetStart();
+		FbxTime end_time = take_info->mLocalTimeSpan.GetStop();
+		FbxTime smapling_step;
+		smapling_step.SetTime(0, 0, 1, 0, 0, time_mode);
+		smapling_step = static_cast<FbxLongLong>(smapling_step.Get() * sampling_time);
+		for (FbxTime current_time = start_time; current_time < end_time; current_time += smapling_step)
+		{
+			skinned_mesh::skeletal skeletal;
+			fetch_bone_matrices(fbx_mesh, skeletal, current_time);
+			skeletal_animation.push_back(skeletal);
+		}
+	}
+	for (int i = 0; i < number_of_animations; i++)
+	{
+		delete array_of_animation_stack_names[i];
 	}
 }
 
@@ -125,9 +166,15 @@ HRESULT	MakeDummyShaderResourceView(ID3D11Device *Device, ID3D11ShaderResourceVi
 
 skinned_mesh::~skinned_mesh() {
 
+	for (mesh &mesh : meshes) {
+		if (mesh.vertex_buffer)mesh.vertex_buffer->Release();
+		if (mesh.index_buffer)mesh.index_buffer->Release();
+		/*for (subset &subset : mesh.subsets) {
+			if (subset.diffuse.shader_resource_view) subset.diffuse.shader_resource_view->Release();
+		}*/
+	}
+
 	if (CBuffer)CBuffer->Release();
-	if (meshes.at(0).index_buffer)meshes.at(0).index_buffer->Release();
-	if (meshes.at(0).vertex_buffer)meshes.at(0).vertex_buffer->Release();
 	if (SamplerDesc)SamplerDesc->Release();
 	if (DepthState)DepthState->Release();
 	if (FRasState)FRasState->Release();
@@ -202,10 +249,13 @@ skinned_mesh::skinned_mesh(ID3D11Device *Device, const char *fbx_filename)
 		fetch_bone_influences(fbx_mesh, bone_influences);
 
 		//Fetch Bone transform
-		FbxTime::EMode time_mode = fbx_mesh->GetScene()->GetGlobalSettings().GetTimeMode();
-		FbxTime frame_time;
-		frame_time.SetTime(0, 0, 0, 1, 0, time_mode);
-		fetch_bone_matrices(fbx_mesh, mesh.skeletal, frame_time * 20); // pose at frame 20
+		//FbxTime::EMode time_mode = fbx_mesh->GetScene()->GetGlobalSettings().GetTimeMode();
+		//FbxTime frame_time;
+		//frame_time.SetTime(0, 0, 0, 1, 0, time_mode);
+		//fetch_bone_matrices(fbx_mesh, mesh.skeletal, frame_time * 20); // pose at frame 20
+
+		//Fetch Animations
+		fetch_animations(fbx_mesh, mesh.skeletal_animation);
 
 		//Fetch material properties
 		const int number_of_materials = fbx_mesh->GetNode()->GetMaterialCount();
@@ -333,7 +383,7 @@ skinned_mesh::skinned_mesh(ID3D11Device *Device, const char *fbx_filename)
 					//MakeDummyShaderResourceView(Device, &subset.diffuse.shader_resource_view);
 				}
 				
-				for (int i = 0,max = bone_influences[index_of_control_point].size(); i < max; ++i) {
+				for (int i = 0,max = bone_influences[index_of_control_point].size(); i < max && i<MAX_BONE_INFLUENCES; ++i) {
 					vertex.bone_weights[i] = bone_influences[index_of_control_point][i].weight;
 					vertex.bone_indices[i] = bone_influences[index_of_control_point][i].index;
 				}
@@ -356,10 +406,13 @@ skinned_mesh::skinned_mesh(ID3D11Device *Device, const char *fbx_filename)
 				mesh.global_transform(row, column) = static_cast<float>(global_transform[row][column]);
 			}
 		}
-
+		mesh.CreateBuffer(Device, vertices.data(), indices.data(), indices.size(), vertices.size());
 	}
 
 	manager->Destroy();
+
+	indices.clear();
+	vertices.clear();
 
 	HRESULT hr;
 
@@ -416,7 +469,7 @@ skinned_mesh::skinned_mesh(ID3D11Device *Device, const char *fbx_filename)
 	hr = Device->CreateDepthStencilState(&depthDesc, &DepthState);
 	if (FAILED(hr))return;
 
-	//ƒTƒ“ƒvƒ‰[ƒXƒe[ƒgİ’è
+	//ã‚µãƒ³ãƒ—ãƒ©ãƒ¼ã‚¹ãƒ†ãƒ¼ãƒˆè¨­å®š
 	D3D11_SAMPLER_DESC samplerDesc;
 	ZeroMemory(&samplerDesc, sizeof(samplerDesc));
 	samplerDesc.Filter = D3D11_FILTER_ANISOTROPIC;
@@ -431,26 +484,36 @@ skinned_mesh::skinned_mesh(ID3D11Device *Device, const char *fbx_filename)
 	hr = Device->CreateSamplerState(&samplerDesc, &SamplerDesc);
 	if (FAILED(hr))return;
 
+	D3D11_BUFFER_DESC bd;
+	//ã‚³ãƒ³ã‚¹ã‚¿ãƒ³ãƒˆ
+	ZeroMemory(&bd, sizeof(bd));
+	bd.Usage = D3D11_USAGE_DEFAULT;
+	bd.ByteWidth = sizeof(cbuffer);
+	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	bd.CPUAccessFlags = 0;
+	bd.MiscFlags = 0;
+	bd.StructureByteStride = 0;
 
-
-	CreateBuffer(Device, vertices.data(), indices.data(), indices.size(), vertices.size());
+	hr = Device->CreateBuffer(&bd, nullptr, &CBuffer);
+	if (FAILED(hr))
+		return;
 
 }
 
-void skinned_mesh::CreateBuffer(ID3D11Device* Device, vertex* vertices, u_int* indices, int numIndex, int numVertex) {
+void skinned_mesh::mesh::CreateBuffer(ID3D11Device* Device, vertex* vertices, u_int* indices, int numIndex, int numVertex) {
 
 	HRESULT hr;
 
 	D3D11_BUFFER_DESC bd;
 	D3D11_SUBRESOURCE_DATA InitData;
 
-	//’¸“_
+	//é ‚ç‚¹
 	ZeroMemory(&bd, sizeof(bd));
 	ZeroMemory(&InitData, sizeof(InitData));
 	bd.Usage = D3D11_USAGE_IMMUTABLE;
 	//bd.ByteWidth = sizeof(vertices);
-	bd.ByteWidth = numVertex * sizeof(vertex);//‘—‚è‚½‚¢î•ñ‚ğŠ·‚¦‚é
-	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;  //ƒRƒ“ƒXƒ^ƒ“ƒgƒoƒbƒtƒ@[‚ÉŠ·‚¦‚é
+	bd.ByteWidth = numVertex * sizeof(vertex);//é€ã‚ŠãŸã„æƒ…å ±ã‚’æ›ãˆã‚‹
+	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;  //ã‚³ãƒ³ã‚¹ã‚¿ãƒ³ãƒˆãƒãƒƒãƒ•ã‚¡ãƒ¼ã«æ›ãˆã‚‹
 	bd.CPUAccessFlags = 0;
 	bd.MiscFlags = 0;
 	bd.StructureByteStride = 0;
@@ -458,11 +521,11 @@ void skinned_mesh::CreateBuffer(ID3D11Device* Device, vertex* vertices, u_int* i
 	InitData.pSysMem = vertices;
 	InitData.SysMemPitch = 0;
 	InitData.SysMemSlicePitch = 0;
-	hr = Device->CreateBuffer(&bd, &InitData, &meshes.at(0).vertex_buffer);
+	hr = Device->CreateBuffer(&bd, &InitData, &vertex_buffer);
 	if (FAILED(hr))
 		return;
 
-	//ƒCƒ“ƒfƒbƒNƒX
+	//ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
 	ZeroMemory(&bd, sizeof(bd));
 	ZeroMemory(&InitData, sizeof(InitData));
 	bd.Usage = D3D11_USAGE_IMMUTABLE;
@@ -478,33 +541,21 @@ void skinned_mesh::CreateBuffer(ID3D11Device* Device, vertex* vertices, u_int* i
 	InitData.SysMemSlicePitch = 0;
 
 	UINT numindices = numIndex;
-	hr = Device->CreateBuffer(&bd, &InitData, &meshes.at(0).index_buffer);
+	hr = Device->CreateBuffer(&bd, &InitData, &index_buffer);
 	if (FAILED(hr))
 		return;
 
-	//ƒRƒ“ƒXƒ^ƒ“ƒg
-	ZeroMemory(&bd, sizeof(bd));
-	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.ByteWidth = sizeof(cbuffer);
-	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	bd.CPUAccessFlags = 0;
-	bd.MiscFlags = 0;
-	bd.StructureByteStride = 0;
-
-	hr = Device->CreateBuffer(&bd, nullptr, &CBuffer);
-	if (FAILED(hr))
-		return;
+	
 }
 
 void skinned_mesh::render(ID3D11DeviceContext * Context,
 	const DirectX::XMFLOAT4X4 & world_view,
 	const DirectX::XMFLOAT4X4 & worldM,
 	const DirectX::XMFLOAT4 & light,
-	const DirectX::XMFLOAT4 & Material_color, bool bWireframe) {
+	const DirectX::XMFLOAT4 & Material_color, 
+	bool bWireframe,
+	float elapsed_time) {
 
-	//’¸“_ƒoƒbƒtƒ@||ƒCƒ“ƒfƒbƒNƒXƒoƒbƒtƒ@‚ª–³‚¯‚ê‚ÎI—¹
-	//if (!VBuffer || !IBuffer)return;
-	if (!meshes.at(0).vertex_buffer || !meshes.at(0).index_buffer)return;
 
 	cbuffer cb;
 	//cb.world_view_projection = world_view;
@@ -514,23 +565,28 @@ void skinned_mesh::render(ID3D11DeviceContext * Context,
 	//Context->UpdateSubresource(CBuffer, 0, NULL, &cb, 0, 0);
 	//Context->VSSetConstantBuffers(0, 1, &CBuffer);
 
-	//static float angle = 0;
-	//DirectX::XMStoreFloat4x4(&cb.bone_transforms[0], DirectX::XMMatrixIdentity());
-	//DirectX::XMStoreFloat4x4(&cb.bone_transforms[1], DirectX::XMMatrixRotationRollPitchYaw(0,0,angle * 0.01745f));
-	//DirectX::XMStoreFloat4x4(&cb.bone_transforms[2], DirectX::XMMatrixIdentity());
-	//angle += 0.1f;
-
-
 
 	for (mesh &mesh : meshes)
 	{
-		std::vector<bone> &skeletal = mesh.skeletal;
-		if (skeletal.size() > 0) {
-			for (size_t i = 0; i < skeletal.size(); i++)
+		//é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡||ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒãƒƒãƒ•ã‚¡ãŒç„¡ã‘ã‚Œã°çµ‚äº†
+		if (!mesh.vertex_buffer || !mesh.index_buffer)return;
+
+		if (mesh.skeletal_animation.size() > 0)
+		{
+			int frame = mesh.skeletal_animation.animation_tick / mesh.skeletal_animation.sampling_time;
+			if (frame > mesh.skeletal_animation.size() - 1)
 			{
-				DirectX::XMStoreFloat4x4(&cb.bone_transforms[i], DirectX::XMLoadFloat4x4(&skeletal.at(i).transform));
+				frame = 0;
+				mesh.skeletal_animation.animation_tick = 0;
 			}
-			
+			std::vector<bone> &skeletal = mesh.skeletal_animation.at(frame);
+			size_t number_of_bones = skeletal.size();
+			_ASSERT_EXPR(number_of_bones < MAX_BONES, L"'the number_of_bones' exceeds MAX_BONES.");
+			for (size_t i = 0; i < number_of_bones; i++)
+			{
+				XMStoreFloat4x4(&cb.bone_transforms[i], XMLoadFloat4x4(&skeletal.at(i).transform));
+			}
+			mesh.skeletal_animation.animation_tick += elapsed_time;
 		}
 		else {
 			DirectX::XMStoreFloat4x4(&cb.bone_transforms[0], DirectX::XMMatrixIdentity());
@@ -538,7 +594,9 @@ void skinned_mesh::render(ID3D11DeviceContext * Context,
 			DirectX::XMStoreFloat4x4(&cb.bone_transforms[2], DirectX::XMMatrixIdentity());
 		}
 
-		for (size_t i = 0; i < mesh.subsets.size(); i++) {
+
+		for (subset &subset : mesh.subsets) {
+
 			DirectX::XMStoreFloat4x4(&cb.world_view_projection,
 				DirectX::XMLoadFloat4x4(&mesh.global_transform) *
 				DirectX::XMLoadFloat4x4(&coordinate_conversion) *
@@ -548,11 +606,10 @@ void skinned_mesh::render(ID3D11DeviceContext * Context,
 				DirectX::XMLoadFloat4x4(&coordinate_conversion) *
 				DirectX::XMLoadFloat4x4(&worldM));
 
-			cb.material_color.x = mesh.subsets.at(i).diffuse.color.x * Material_color.x;
-			cb.material_color.y = mesh.subsets.at(i).diffuse.color.y * Material_color.y;
-			cb.material_color.z = mesh.subsets.at(i).diffuse.color.z * Material_color.z;
+			cb.material_color.x = subset.diffuse.color.x * Material_color.x;
+			cb.material_color.y = subset.diffuse.color.y * Material_color.y;
+			cb.material_color.z = subset.diffuse.color.z * Material_color.z;
 			cb.material_color.w = Material_color.w;
-
 
 			
 
@@ -561,10 +618,10 @@ void skinned_mesh::render(ID3D11DeviceContext * Context,
 			UINT offset = 0;
 
 			// Set vertex buffer
-			Context->IASetVertexBuffers(0, 1, &meshes.at(0).vertex_buffer, &stride, &offset);
+			Context->IASetVertexBuffers(0, 1, &mesh.vertex_buffer, &stride, &offset);
 
 			// Set index buffer
-			Context->IASetIndexBuffer(meshes.at(0).index_buffer, DXGI_FORMAT_R32_UINT, 0);
+			Context->IASetIndexBuffer(mesh.index_buffer, DXGI_FORMAT_R32_UINT, 0);
 
 			// Set primitive topology
 			Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -588,48 +645,14 @@ void skinned_mesh::render(ID3D11DeviceContext * Context,
 			//depth
 			Context->OMSetDepthStencilState(DepthState, 0);
 
-			//index•t‚«•`‰æ
+			//indexä»˜ãæç”»
 			D3D11_BUFFER_DESC buffer_desc;
-			meshes.at(0).index_buffer->GetDesc(&buffer_desc);
+			mesh.index_buffer->GetDesc(&buffer_desc);
 
-			Context->PSSetShaderResources(0, 1, &mesh.subsets.at(i).diffuse.shader_resource_view);
-			Context->DrawIndexed(mesh.subsets.at(i).index_start + mesh.subsets.at(i).index_count, 0, 0);
+			Context->PSSetShaderResources(0, 1, &subset.diffuse.shader_resource_view);
+			Context->DrawIndexed(subset.index_start + subset.index_count, 0, 0);
 
 		}
 	}
 }
-	// Set vertex buffer
-	//UINT stride = sizeof(vertex);
-	//UINT offset = 0;
-
-	// Set vertex buffer
-	//Context->IASetVertexBuffers(0, 1, &meshes.at(0).vertex_buffer, &stride, &offset);
-
-	// Set index buffer
-	//Context->IASetIndexBuffer(meshes.at(0).index_buffer, DXGI_FORMAT_R32_UINT, 0);
-
-	// Set primitive topology
-	//Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-	// Set the input layout
-	//Context->IASetInputLayout(Layout);
-
-	//state
-	//if (bWireframe) Context->RSSetState(WRasState);
-	//else Context->RSSetState(FRasState);
-
-	// Set Shaders
-	//Context->VSSetShader(Vertex, NULL, 0);
-	//Context->PSSetShader(PixelShader, NULL, 0);
-
-	//Context->PSSetShaderResources(0, 1,&diffuse.shader_resource_view);
-
-	//Context->PSSetSamplers(0, 1, &SamplerDesc);
-
-	//depth
-	//Context->OMSetDepthStencilState(DepthState, 0);
-
-	//index•t‚«•`‰æ
-	//D3D11_BUFFER_DESC buffer_desc;
-	//meshes.at(0).index_buffer->GetDesc(&buffer_desc);
-	//Context->DrawIndexed(buffer_desc.ByteWidth / sizeof(u_int), 0, 0);
+	

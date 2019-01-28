@@ -158,10 +158,19 @@ bool framework::initialize(HWND hwnd)
 		"003_cube.fbx",				//3色
 		"004_cube.fbx",				//3つ
 		"005_cube.fbx",				//影響度
+		"dummy_data.fbx",
+		"danbo_atk.fbx",
+		"Hutyakiti_hatON_lowVer.fbx",
+		"BlueFalcon.FBX",
+		"Misaki_win_humanoid.fbx",
+		"ShachikuChan_ver3.fbx",
+		"iga/iga.fbx",
+		"iga/iga@01wait.fbx",
+		"chara/JNT_00100_anathema_H.fbx",
 	};
 
 
-	sdk = new skinned_mesh(Device, sdk_meshData[5]);
+	sdk = new skinned_mesh(Device, sdk_meshData[13]);
 	
 	return true;
 }
@@ -252,8 +261,8 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	const DirectX::XMFLOAT4 ctarget(0, 0, 0, 1);
 
 	static DirectX::XMFLOAT3 pos(0, 0, 0);
-	static DirectX::XMFLOAT3 angle(0, 0, 0);
-	static DirectX::XMFLOAT3 scale(1, 1, 1);
+	static DirectX::XMFLOAT3 angle(-1, 0, 0);
+	static DirectX::XMFLOAT3 scale(0.05, 0.05, 0.05);
 
 	static float fovY = DirectX::XMConvertToRadians(30.0f);
 
@@ -289,7 +298,7 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	const float aspect = (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT;
 	if (GetAsyncKeyState('A') & 1)bPers = !bPers;
 
-	if (!bPers)//透視と平行を変えるために先生が作ったやつ（別の方法でもいい）
+	if (!bPers)//透視と平行を変える
 		P = DirectX::XMMatrixOrthographicLH(
 			2 * aspect,
 			2,
@@ -322,7 +331,7 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	sdk->render(Context,
 		wvp, w, light_dir,
 		material_col,
-		bWareframe);
+		bWareframe,elapsed_time);
 
 
 	SwapChain->Present(0, 0);
